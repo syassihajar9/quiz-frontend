@@ -1,67 +1,111 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { FaEdit, FaTrash } from 'react-icons/fa'; // Importing icons for actions
-import './QuizApp.css'; // Ensure that your CSS file contains necessary styles
+import { FaEdit, FaTrash } from 'react-icons/fa';
+import './QuizApp.css';
 
 const API_URL = 'http://localhost:9090/api';
 
 const QuizApp = () => {
   const [quizzes, setQuizzes] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [form, setForm] = useState({ id: null, nom: '', description: '', difficulte: '', categorieId: '' });
+  const [form, setForm] = useState({
+    id: null,
+    nom: '',
+    description: '',
+    difficulte: '',
+    categorieId: '',
+    photo: null
+  });
 
   useEffect(() => {
     fetchQuizzes();
     fetchCategories();
   }, []);
 
+  // Récupérer les quizzes depuis l'API
   const fetchQuizzes = async () => {
-    const res = await axios.get(`${API_URL}/quizzes`);
-    setQuizzes(res.data);
+    try {
+      const res = await axios.get(`${API_URL}/quizzes`);
+      console.log('Quizzes récupérés:', res.data); // Vérification des données
+      setQuizzes(res.data);
+    } catch (error) {
+      console.error('Erreur de récupération des quizzes:', error);
+    }
   };
 
+  // Récupérer les catégories depuis l'API
   const fetchCategories = async () => {
-    const res = await axios.get(`${API_URL}/categories`);
-    setCategories(res.data);
+    try {
+      const res = await axios.get(`${API_URL}/categories`);
+      console.log('Catégories récupérées:', res.data); // Vérification des catégories
+      setCategories(res.data);
+    } catch (error) {
+      console.error('Erreur de récupération des catégories:', error);
+    }
   };
 
+  // Gérer le changement des champs du formulaire
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const quizData = {
-      nom: form.nom,
-      description: form.description,
-      difficulte: form.difficulte,
-      categorie: { id: form.categorieId }
-    };
-
-    if (form.id) {
-      await axios.put(`${API_URL}/quizzes/${form.id}`, quizData);
-    } else {
-      await axios.post(`${API_URL}/quizzes`, quizData);
-    }
-
-    setForm({ id: null, nom: '', description: '', difficulte: '', categorieId: '' });
-    fetchQuizzes();
+  // Gérer le changement du fichier (photo)
+  const handleFileChange = (e) => {
+    setForm({ ...form, photo: e.target.files[0] });
   };
 
+  // Soumettre le formulaire pour créer ou modifier un quiz
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData();
+    formData.append('nom', form.nom);
+    formData.append('description', form.description);
+    formData.append('difficulte', form.difficulte);
+    formData.append('categorieId', form.categorieId);
+    if (form.photo) {
+      formData.append('photo', form.photo);
+    }
+
+    try {
+      if (form.id) {
+        await axios.put(`${API_URL}/quizzes/${form.id}`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      } else {
+        await axios.post(`${API_URL}/quizzes`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      }
+
+      setForm({ id: null, nom: '', description: '', difficulte: '', categorieId: '', photo: null });
+      fetchQuizzes(); // Rafraîchir la liste des quizzes après soumission
+    } catch (error) {
+      console.error('Erreur lors de la soumission du quiz:', error);
+    }
+  };
+
+  // Modifier un quiz
   const handleEdit = (quiz) => {
     setForm({
       id: quiz.id,
       nom: quiz.nom,
       description: quiz.description,
       difficulte: quiz.difficulte,
-      categorieId: quiz.categorie.id
+      categorieId: quiz.categorie.id,
+      photo: null
     });
   };
 
+  // Supprimer un quiz
   const handleDelete = async (id) => {
     if (window.confirm('Confirmer la suppression ?')) {
-      await axios.delete(`${API_URL}/quizzes/${id}`);
-      fetchQuizzes();
+      try {
+        await axios.delete(`${API_URL}/quizzes/${id}`);
+        fetchQuizzes(); // Rafraîchir la liste après suppression
+      } catch (error) {
+        console.error('Erreur lors de la suppression du quiz:', error);
+      }
     }
   };
 
@@ -95,7 +139,7 @@ const QuizApp = () => {
         </header>
 
         <div className="form-container">
-          <form onSubmit={handleSubmit} className="form-grid">
+          <form onSubmit={handleSubmit} className="form-grid" encType="multipart/form-data">
             <div className="form-group">
               <label>Nom du Quiz</label>
               <input
@@ -141,10 +185,23 @@ const QuizApp = () => {
                 required
               >
                 <option value="">-- Choisir une catégorie --</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>{cat.nom}</option>
-                ))}
+                {categories.length > 0 ? (
+                  categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>{cat.nom}</option>
+                  ))
+                ) : (
+                  <option disabled>Aucune catégorie disponible</option>
+                )}
               </select>
+            </div>
+            <div className="form-group">
+              <label>Photo</label>
+              <input
+                type="file"
+                name="photo"
+                accept="image/*"
+                onChange={handleFileChange}
+              />
             </div>
             <button type="submit" className="generate-btn">
               {form.id ? 'Modifier' : 'Ajouter'}
@@ -161,6 +218,7 @@ const QuizApp = () => {
                 <th>Description</th>
                 <th>Difficulté</th>
                 <th>Catégorie</th>
+                <th>Image</th> {/* Nouvelle colonne pour l'image */}
                 <th>Actions</th>
               </tr>
             </thead>
@@ -172,7 +230,14 @@ const QuizApp = () => {
                     <td>{quiz.nom}</td>
                     <td>{quiz.description}</td>
                     <td>{quiz.difficulte}</td>
-                    <td>{quiz.categorie?.nom}</td>
+                    <td>{quiz.categorie ? quiz.categorie.nom : 'Aucune catégorie'}</td>
+                    <td>
+                      {quiz.photo ? (
+                        <img src={quiz.photo} alt={quiz.nom} width="100" height="100" />
+                      ) : (
+                        'Pas d\'image'
+                      )}
+                    </td>
                     <td>
                       <button className="action-btn edit" onClick={() => handleEdit(quiz)}>
                         <FaEdit />
@@ -185,7 +250,7 @@ const QuizApp = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="6" style={{ textAlign: 'center' }}>
+                  <td colSpan="7" style={{ textAlign: 'center' }}>
                     Aucun quiz trouvé
                   </td>
                 </tr>
